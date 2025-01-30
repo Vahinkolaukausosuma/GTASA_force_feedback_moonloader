@@ -28,7 +28,7 @@ HRESULT SetDeviceForcesXY();
 #define SAFE_DELETE(p)  { if(p) { delete (p);     (p)=nullptr; } }
 #define SAFE_RELEASE(p) { if(p) { (p)->Release(); (p)=nullptr; } }
 
-
+DIJOYSTATE idk = {};
 LPDIRECTINPUT8          g_pDI = nullptr;
 LPDIRECTINPUTDEVICE8    g_pDevice = nullptr;
 LPDIRECTINPUTEFFECT     g_pEffect = nullptr;
@@ -174,6 +174,37 @@ HRESULT InitDirectInput()
 	return S_OK;
 }
 
+//
+//BOOL GetData()
+//{
+//	//g_pDevice->GetDeviceDataQQQQ
+//	DIDEVICEOBJECTDATA rgdod[100];
+//
+//	DIDEVICEOBJECTDATA *lpdidod;
+//		DWORD dwItems = 10;
+//	DWORD hres = g_pDevice->GetDeviceData(sizeof(DIDEVICEOBJECTDATA),	rgdod,&dwItems,	0);
+//	g_pDevice->GetDeviceState(sizeof(DIJOYSTATE))
+//	
+//	if (SUCCEEDED(hres)) {
+//		printf("dwItems = %d\n", dwItems);
+//		for (int i = 0; i < 50; i++)
+//		{
+//			lpdidod = &rgdod[i];
+//			printf("i=%d, lpdidod->dwOfs = %d, lpdidod->dwData = %d\n",i, lpdidod->dwOfs, lpdidod->dwData);
+//		}
+//
+//		// Buffer successfully flushed. 
+//		// dwItems = Number of elements flushed. 
+//		if (hres == DI_BUFFEROVERFLOW) {
+//			// Buffer had overflowed. 
+//		}
+//		else
+//		{
+//			//printf("hres = %s\n", formatError(hres).c_str());
+//		}
+//	}
+//	return false;
+//}
 
 //-----------------------------------------------------------------------------
 // Name: EnumAxesCallback()
@@ -206,8 +237,11 @@ BOOL CALLBACK EnumFFDevicesCallback(const DIDEVICEINSTANCE* pInst,
 	HRESULT hr;
 
 	// Obtain an interface to the enumerated force feedback device.
-	hr = g_pDI->CreateDevice(pInst->guidInstance, &pDevice, nullptr);
 
+	hr = g_pDI->CreateDevice(GUID_Joystick, &pDevice, nullptr);
+	//hr = g_pDI->CreateDevice(pInst->guidInstance, &pDevice, nullptr);
+
+	//pInst->guidInstance
 	// If it failed, then we can't use this device for some
 	// bizarre reason.  (Maybe the user unplugged it while we
 	// were in the middle of enumerating it.)  So continue enumerating
@@ -298,6 +332,7 @@ sol::table open(sol::this_state ts)
 	module.set_function("Init", [](sol::this_state ts) {
 		sol::state_view lua{ ts };
 		HWNDProgram = GetForegroundWindow();
+
 		lua["print"]("Initializing ");
 		lua["print"](HWNDProgram);
 
@@ -308,7 +343,7 @@ sol::table open(sol::this_state ts)
 		}
 		//lua["print"]("[C++] InitDirectInput failed Errorcode: %d, Error message: %s\n", hr, formatError(hr).c_str());
 
-	});
+		});
 	module.set_function("SetFFB", [](sol::this_state ts, int Val) {
 		sol::state_view lua{ ts };
 
@@ -320,11 +355,34 @@ sol::table open(sol::this_state ts)
 			printf("[C++] SetDeviceForcesXY failed Errorcode: %d, Error message: %s\n", hr, formatError(hr).c_str());
 		}
 
-	});
+		});
 	module.set_function("FreeDirectInput", [](sol::this_state ts) {
 		sol::state_view lua{ ts };
 		FreeDirectInput();
-	});
+		});
+	module.set_function("GetData", [](sol::this_state ts) {
+		sol::state_view lua{ ts };
+		DWORD hres = g_pDevice->GetDeviceState(sizeof(DIJOYSTATE), &idk);
+		sol::table result = lua.create_table();
+
+		if (SUCCEEDED(hres)) {
+
+
+
+			result[0] = idk.lRx;
+			result[1] = idk.lRy;
+			result[2] = idk.lRz;
+			result[3] = idk.lX;
+			result[4] = idk.lY;
+			result[5] = idk.lZ;
+			result[6] = idk.rglSlider[0];
+			result[7] = idk.rglSlider[1];
+
+			return result;
+
+		}
+		return result;
+		});
 	module.set_function("AcquireDevice", [](sol::this_state ts) {
 		sol::state_view lua{ ts };
 		HRESULT hr;
@@ -333,7 +391,12 @@ sol::table open(sol::this_state ts)
 			printf("[C++] g_pDevice->Acquire failed Errorcode: %d, Error message: %s\n", hr, formatError(hr).c_str());
 		}
 		//lua["print"]("[C++] g_pDevice->Acquire failed Errorcode: %d, Error message: %s\n", hr, formatError(hr).c_str());
-	});
+		});
+
+	module.set_function("debug", [](sol::this_state ts) {
+		sol::state_view lua{ ts };
+		printf("%p\n", GetForegroundWindow());
+		});
 	module.set_function("SpawnConsole", [](sol::this_state ts) {
 		sol::state_view lua{ ts };
 
@@ -363,21 +426,21 @@ sol::table open(sol::this_state ts)
 		std::wclog.clear();
 		std::wcerr.clear();
 		std::wcin.clear();
-	});
+		});
 	module.set_function("Print", [](sol::this_state ts, std::string penis) {
 		sol::state_view lua{ ts };
 		printf("[SA LUA] %s\n", penis.c_str());
-	});
+		});
 	return module;
 }
 
 BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved) {
-    if (fdwReason == DLL_PROCESS_ATTACH) {
-        // Uncomment these lines to make module unloadable
-        //HMODULE hModule;
-        //GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS|GET_MODULE_HANDLE_EX_FLAG_PIN, reinterpret_cast<LPCWSTR>(&DllMain), &hModule);
-    }
-    return TRUE;
+	if (fdwReason == DLL_PROCESS_ATTACH) {
+		// Uncomment these lines to make module unloadable
+		//HMODULE hModule;
+		//GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS|GET_MODULE_HANDLE_EX_FLAG_PIN, reinterpret_cast<LPCWSTR>(&DllMain), &hModule);
+	}
+	return TRUE;
 }
 
 SOL_MODULE_ENTRYPOINT(open);
